@@ -138,3 +138,266 @@ try {
   // 에러 발생 여부와 상관없이 try/catch 이후에 실행됨
 }
 ```
+
+# 커스텀 에러와 에러 확장
+
+## 예외 감싸기(wrapping exception)
+
+# 여기
+
+# 콜백
+
+setTimeout 은 대표적인 비동기 asynchronous 스케줄링이다.
+비동기적으로 실행되면 순차적으로 함수가 끝난후에 실행이 된다.
+
+콜백 함수는 나중에 호출할 함수를 의미한다.
+
+## 콜백 기반 비동기 프로그래밍
+
+비동기적으로 수행하는 함수 내 동작이 모두 처리된 후 실행해야하는 함수가 들어갈 경우
+
+```
+function loadScript(src, callback) {
+  let script = document.createElement('script');
+  script.src = src;
+
+  script.onload = () => callback(script);
+
+  document.head.append(script);
+}
+```
+
+두번째 인수에 callback 함수를 추가하고
+원하는 콜백함수를 호출하면 외부 스크립트 안의 함수를 사용할수있다.
+
+```
+loadScript('/my/script.js', function() {
+ // 콜백 함수는 스크립트 로드가 끝나면 실행됩니다.
+ newFunction(); // 이제 함수 호출이 제대로 동작합니다.
+ ...
+});
+```
+
+여기서 callback 인수자리에 functioni(){원하는함수} 를 넣어주었다.
+
+실제 적용 예시이다.
+
+```
+function loadScript(src, callback) {
+  let script = document.createElement('script');
+  script.src = src;
+  script.onload = () => callback(script);
+  document.head.append(script);
+}
+
+// 두번째 callback 인수 자리에 `script => { alert(`${script.src}가 로드되었습니다.`)` 를 콜백함수로 넣어주었다.
+loadScript('https://cdnjs.cloudflare.com/ajax/libs/lodash.js/3.2.0/lodash.js', script => {
+  alert(`${script.src}가 로드되었습니다.`);
+  alert( _ ); // 스크립트에 정의된 함수
+});
+```
+
+# 콜백 속 콜백 (콜백지옥)
+
+콜백 속에 중첩으로 콜백을 호출할수있지만 가시성이 좋지않다.
+
+```
+loadScript('/my/script.js', function(script) {
+
+  loadScript('/my/script2.js', function(script) {
+
+    loadScript('/my/script3.js', function(script) {
+      // 세 스크립트 로딩이 끝난 후 실행됨
+    });
+
+  })
+
+});
+```
+
+# 에러 핸들링
+
+## 오류 우선 콜백(error-first callback) 패턴
+
+성공하면 callback(null, script)을, 실패하면 callback(error)을 호출
+
+```
+loadScript('/my/script.js', function(error, script) {
+  if (error) {
+    // 에러 처리
+  } else {
+    // 스크립트 로딩이 성공적으로 끝남
+  }
+});
+```
+
+### 멸망의 피라미드
+
+아래와 같이 중첩에 중첩이 길어지면 콜백지옥이 만들어진다.
+
+```
+loadScript('1.js', function(error, script) {
+
+  if (error) {
+    handleError(error);
+  } else {
+    // ...
+    loadScript('2.js', function(error, script) {
+      if (error) {
+        handleError(error);
+      } else {
+        // ...
+        loadScript('3.js', function(error, script) {
+          if (error) {
+            handleError(error);
+          } else {
+            // 모든 스크립트가 로딩된 후, 실행 흐름이 이어집니다. (*)
+          }
+        });
+
+      }
+    })
+  }
+});
+```
+
+=> 이를 보완하기 위해 프라미스(promise) 가 등장한다.
+
+# 프라미스
+
+resolve와 reject는 자바스크립트에서 자체 제공하는 콜백이다.
+
+- resolve(value) — 일이 성공적으로 끝난 경우 그 결과를 나타내는 value와 함께 호출
+- reject(error) — 에러 발생 시 에러 객체를 나타내는 error와 함께 호출
+
+```
+let promise = new Promise(function(resolve, reject) {
+  // executor (제작 코드, '가수')
+});
+```
+
+executor는 자동으로 실행되는데 여기서 원하는 일이 처리됩니다. 처리가 끝나면 executor는 처리 성공 여부에 따라 resolve나 reject를 호출한다.
+
+- resolve 예시
+
+```
+let promise = new Promise(function(resolve, reject) {
+  // 프라미스가 만들어지면 executor 함수는 자동으로 실행됩니다.
+
+  // 1초 뒤에 일이 성공적으로 끝났다는 신호가 전달되면서 result는 '완료'가 됩니다.
+  setTimeout(() => resolve("완료"), 1000);
+});
+```
+
+- reject 예시
+
+```
+let promise = new Promise(function(resolve, reject) {
+  // 1초 뒤에 에러와 함께 실행이 종료되었다는 신호를 보냅니다.
+  setTimeout(() => reject(new Error("에러 발생!")), 1000);
+});
+```
+
+# then, catch, finally
+
+- then(): Promise가 성공적으로 완료되었을 때 실행될 함수를 등록합니다.
+  성공적인 결과 값을 인자로 받아 처리할 수 있습니다.
+- catch(): Promise가 실패했을 때 실행될 함수를 등록합니다.
+  에러 객체를 인자로 받아 처리할 수 있습니다.
+- finally(): Promise가 성공하든 실패하든 항상 실행될 함수를 등록합니다.
+
+```
+function fetchData() {
+  return new Promise((resolve, reject) => {
+    // 데이터를 가져오는 비동기 작업 (예: 서버에서 데이터 가져오기)
+    setTimeout(() => {
+      if (Math.random() > 0.5) {
+        resolve('데이터 가져오기 성공');
+      } else {
+        reject(new Error('데이터 가져오기 실패'));
+      }
+    }, 1000);
+  });
+}
+
+fetchData()
+  .then(data => {
+    console.log(data); // 데이터 가져오기 성공 시 실행
+  })
+  .catch(error => {
+    console.error(error); // 데이터 가져오기 실패 시 실행
+  })
+  .finally(() => {
+    console.log('데이터 가져오기 작업 완료'); // 항상 실행
+  });
+```
+
+then 메서드는 데이터 가져오기가 성공했을 때 실행될 함수를 등록합니다.
+catch 메서드는 데이터 가져오기가 실패했을 때 실행될 함수를 등록합니다.
+finally 메서드는 성공하든 실패하든 항상 실행될 함수를 등록합니다.
+
+# 프라미스 체이닝
+
+result가 .then 핸들러의 체인(사슬)을 통해 전달.
+.then 을 연속해서 사용.
+
+```
+new Promise(function(resolve, reject) {
+
+  setTimeout(() => resolve(1), 1000); // (*)
+
+}).then(function(result) { // (**)
+
+  alert(result); // 1
+  return result * 2;
+
+}).then(function(result) { // (***)
+
+  alert(result); // 2
+  return result * 2;
+
+}).then(function(result) {
+
+  alert(result); // 4
+  return result * 2;
+
+});
+```
+
+# fetch와 체이닝 함께 응용하기
+
+```
+function loadJson(url) {
+  return fetch(url)
+    .then(response => response.json());
+}
+
+// data fetch 해오기
+function loadGithubUser(name) {
+  return fetch(`https://api.github.com/users/${name}`)
+    .then(response => response.json());
+}
+
+function showAvatar(githubUser) {
+  return new Promise(function(resolve, reject) {
+    let img = document.createElement('img');
+    img.src = githubUser.avatar_url;
+    img.className = "promise-avatar-example";
+    document.body.append(img);
+
+    setTimeout(() => {
+      img.remove();
+      resolve(githubUser);
+    }, 3000);
+  });
+}
+
+=> .then 체이닝으로 간편하게 fetch
+
+// 함수를 이용하여 다시 동일 작업 수행
+loadJson('/article/promise-chaining/user.json')
+  .then(user => loadGithubUser(user.name))
+  .then(showAvatar)
+  .then(githubUser => alert(`Finished showing ${githubUser.name}`));
+  // ...
+```
